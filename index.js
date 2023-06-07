@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const {MongoClient, ServerApiVersion} = require("mongodb");
+const {MongoClient, ServerApiVersion, ObjectId} = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.p7e2eey.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -36,9 +36,7 @@ async function run() {
     app.post("/users", async (req, res) => {
       const user = req.body;
       if (!user.email) {
-        return res
-          .status(400)
-          .send({error: true, message: "missing email"});
+        return res.status(400).send({error: true, message: "missing email"});
       }
       const userExists = await usersCollection.findOne({email: user.email});
       if (userExists) {
@@ -48,6 +46,28 @@ async function run() {
       }
       const newUser = await usersCollection.insertOne(user);
       res.send(newUser);
+    });
+
+    // make an admin using existing user account
+    app.patch("/users/admin/:id", async (req, res) => {
+      const {id} = req.params;
+      console.log(id);
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
+      }
+      const user = await usersCollection.findOne({_id: new ObjectId(id)});
+      console.log(user);
+      if (!user) {
+        return res.status(404).send({error: true, message: "user not found"});
+      }
+      const updateDoc = {
+        $set: {
+          userType: "admin",
+        },
+      };
+
+      await usersCollection.updateOne({_id: new ObjectId(id)}, updateDoc);
+      res.send(user);
     });
 
     // Send a ping to confirm a successful connection
