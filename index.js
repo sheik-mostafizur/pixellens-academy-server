@@ -48,6 +48,16 @@ async function run() {
       res.send(newUser);
     });
 
+    // check admin
+    app.get("/users/admin/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const query = {email: email};
+      const user = await usersCollection.findOne(query);
+      const result = {admin: user?.userType === "admin"};
+      res.send(result);
+    });
+
     // make an admin using existing user account
     app.patch("/users/admin/:id", async (req, res) => {
       const {id} = req.params;
