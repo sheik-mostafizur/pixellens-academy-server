@@ -66,8 +66,35 @@ async function run() {
         },
       };
 
-      await usersCollection.updateOne({_id: new ObjectId(id)}, updateDoc);
-      res.send(user);
+      const result = await usersCollection.updateOne(
+        {_id: new ObjectId(id)},
+        updateDoc
+      );
+      res.send(result);
+    });
+
+    // make an instructor using existing user account
+    app.patch("/users/instructor/:id", async (req, res) => {
+      const {id} = req.params;
+      console.log(id);
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
+      }
+      const user = await usersCollection.findOne({_id: new ObjectId(id)});
+      console.log(user);
+      if (!user) {
+        return res.status(404).send({error: true, message: "user not found"});
+      }
+      const updateDoc = {
+        $set: {
+          userType: "instructor",
+        },
+      };
+      const result = await usersCollection.updateOne(
+        {_id: new ObjectId(id)},
+        updateDoc
+      );
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
