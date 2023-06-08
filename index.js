@@ -48,6 +48,16 @@ async function run() {
       res.send(newUser);
     });
 
+    // check userTeype
+    app.get("/users/user-type/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const query = {email: email};
+      const user = await usersCollection.findOne(query);
+      const result = {userType: user.userType};
+      res.send(result);
+    });
+
     // check admin
     app.get("/users/admin/:email", async (req, res) => {
       const email = req.params.email;
