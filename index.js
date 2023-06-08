@@ -79,6 +79,43 @@ async function run() {
       res.send(result);
     });
 
+    // get all classes as admin
+    app.get("/admin/:email/classes", async (req, res) => {
+      const classes = await classesCollection.find({}).toArray();
+      res.send(classes);
+    });
+    // update a class
+    app.patch("/admin/:email/classes/:id", async (req, res) => {
+      // find a class using id and update class status
+      const {id} = req.params;
+      const {status, feedback} = req.body;
+
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
+      }
+      if (!status || !feedback) {
+        return res.status(400).send({error: true, message: "missing body"});
+      }
+      const singleClass = await classesCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      if (!singleClass) {
+        return res.status(404).send({error: true, message: "Class not found"});
+      }
+
+      const updateDoc = {
+        $set: {
+          status: status,
+          feedback: feedback,
+        },
+      };
+      const result = await classesCollection.updateOne(
+        {_id: new ObjectId(id)},
+        updateDoc
+      );
+      res.send(result);
+    });
+
     // make an admin using existing user account
     app.patch("/admin/:id", async (req, res) => {
       const {id} = req.params;
@@ -168,7 +205,6 @@ async function run() {
       const classes = await classesCollection.find(query).toArray();
       res.send(classes);
     });
-
 
     // check class
 
