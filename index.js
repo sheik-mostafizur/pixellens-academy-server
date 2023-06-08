@@ -26,6 +26,9 @@ async function run() {
     // await client.connect();
 
     const usersCollection = client.db("pixelLensAcademyDB").collection("users");
+    const classesCollection = client
+      .db("pixelLensAcademyDB")
+      .collection("classes");
 
     // Users routes
     app.get("/users", async (req, res) => {
@@ -145,6 +148,27 @@ async function run() {
       );
       res.send(result);
     });
+
+    /**
+     * post classes
+     */
+    // post classes
+    app.post("/classes", async (req, res) => {
+      const classData = req.body;
+      if (!classData?.instructorId) {
+        return res.status(400).send({error: true, message: "error is ocurred"});
+      }
+      const result = await classesCollection.insertOne(classData);
+      res.send(result);
+    });
+
+    // get all classes
+    app.get("/classes", async (req, res) => {
+      const classes = await classesCollection.find({}).toArray();
+      res.send(classes);
+    });
+
+    // check class
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ping: 1});
