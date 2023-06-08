@@ -93,6 +93,16 @@ async function run() {
       res.send(result);
     });
 
+    // get all instructors
+    app.get("/users/instructors", async (req, res) => {
+      const instructors = await usersCollection
+        .find({
+          userType: "instructor",
+        })
+        .toArray();
+      res.send(instructors);
+    });
+
     // check instructor
     app.get("/users/instructor/:email", async (req, res) => {
       const email = req.params.email;
