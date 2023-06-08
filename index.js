@@ -83,6 +83,16 @@ async function run() {
       res.send(result);
     });
 
+    // check instructor
+    app.get("/users/instructor/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const query = {email: email};
+      const user = await usersCollection.findOne(query);
+      const result = {instructor: user?.userType === "instructor"};
+      res.send(result);
+    });
+
     // make an instructor using existing user account
     app.patch("/users/instructor/:id", async (req, res) => {
       const {id} = req.params;
