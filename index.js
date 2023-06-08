@@ -39,7 +39,6 @@ async function run() {
     // get a user using email
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
-
       const query = {email: email};
       const user = await usersCollection.findOne(query);
       res.send(user);
@@ -60,8 +59,8 @@ async function run() {
       res.send(newUser);
     });
 
-    // check userTeype
-    app.get("/users/user-type/:email", async (req, res) => {
+    // check userType
+    app.get("/user-type/:email", async (req, res) => {
       const email = req.params.email;
 
       const query = {email: email};
@@ -71,7 +70,7 @@ async function run() {
     });
 
     // check admin
-    app.get("/users/admin/:email", async (req, res) => {
+    app.get("/admin/:email", async (req, res) => {
       const email = req.params.email;
 
       const query = {email: email};
@@ -81,14 +80,12 @@ async function run() {
     });
 
     // make an admin using existing user account
-    app.patch("/users/admin/:id", async (req, res) => {
+    app.patch("/admin/:id", async (req, res) => {
       const {id} = req.params;
-      console.log(id);
       if (!id) {
         return res.status(400).send({error: true, message: "missing id"});
       }
       const user = await usersCollection.findOne({_id: new ObjectId(id)});
-      console.log(user);
       if (!user) {
         return res.status(404).send({error: true, message: "user not found"});
       }
@@ -106,7 +103,7 @@ async function run() {
     });
 
     // get all instructors
-    app.get("/users/instructors", async (req, res) => {
+    app.get("/instructors", async (req, res) => {
       const instructors = await usersCollection
         .find({
           userType: "instructor",
@@ -116,7 +113,7 @@ async function run() {
     });
 
     // check instructor
-    app.get("/users/instructor/:email", async (req, res) => {
+    app.get("/instructor/:email", async (req, res) => {
       const email = req.params.email;
 
       const query = {email: email};
@@ -126,14 +123,13 @@ async function run() {
     });
 
     // make an instructor using existing user account
-    app.patch("/users/instructor/:id", async (req, res) => {
+    app.patch("/instructor/:id", async (req, res) => {
       const {id} = req.params;
-      console.log(id);
+
       if (!id) {
         return res.status(400).send({error: true, message: "missing id"});
       }
       const user = await usersCollection.findOne({_id: new ObjectId(id)});
-      console.log(user);
       if (!user) {
         return res.status(404).send({error: true, message: "user not found"});
       }
@@ -149,9 +145,12 @@ async function run() {
       res.send(result);
     });
 
-    /**
-     * post classes
-     */
+    // get all classes
+    app.get("/classes", async (req, res) => {
+      const classes = await classesCollection.find({}).toArray();
+      res.send(classes);
+    });
+
     // post classes
     app.post("/classes", async (req, res) => {
       const classData = req.body;
@@ -162,11 +161,14 @@ async function run() {
       res.send(result);
     });
 
-    // get all classes
-    app.get("/classes", async (req, res) => {
-      const classes = await classesCollection.find({}).toArray();
+    // get classes using instructor id
+    app.get("/classes/:instructorId", async (req, res) => {
+      const instructorId = req.params.instructorId;
+      const query = {instructorId: instructorId};
+      const classes = await classesCollection.find(query).toArray();
       res.send(classes);
     });
+
 
     // check class
 
