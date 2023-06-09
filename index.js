@@ -62,10 +62,12 @@ async function run() {
     // check userType
     app.get("/user-type/:email", async (req, res) => {
       const email = req.params.email;
-
+      if (!email) {
+        return res.status(400).send({error: true, message: "missing email"});
+      }
       const query = {email: email};
       const user = await usersCollection.findOne(query);
-      const result = {userType: user.userType};
+      const result = {userType: user?.userType};
       res.send(result);
     });
 
@@ -182,9 +184,10 @@ async function run() {
       res.send(result);
     });
 
-    // get all classes
+    // get all approved classes
     app.get("/classes", async (req, res) => {
-      const classes = await classesCollection.find({}).toArray();
+      const query = {status: "approved"};
+      const classes = await classesCollection.find(query).toArray();
       res.send(classes);
     });
 
