@@ -30,6 +30,10 @@ async function run() {
     const classesCollection = client
       .db("pixelLensAcademyDB")
       .collection("classes");
+    const cartsCollection = client.db("pixelLensAcademyDB").collection("carts");
+    const paymentCollection = client
+      .db("pixelLensAcademyDB")
+      .collection("payments");
 
     // Users routes
     app.get("/users", async (req, res) => {
@@ -238,47 +242,34 @@ async function run() {
       res.send(classes);
     });
 
-    // add selectedClasses in users collection as a student
-    app.patch("/selected-classes/:id", async (req, res) => {
-      const {id} = req.params;
-      const {selectedClass} = req.body;
-
-      if (!id || !selectedClass) {
-        return res
-          .status(400)
-          .send({error: true, message: "missing id or selectedClass"});
+    // get carts using email
+    app.get("/carts/:email", async (req, res) => {
+      const email = req.params.email;
+      if (!email) {
+        return res.status(400).send({error: true, message: "missing email"});
       }
+      const query = {email: email};
+      const carts = await cartsCollection.find(query).toArray();
+      res.send(carts);
+    });
 
-      const user = await usersCollection.findOne({_id: new ObjectId(id)});
-
-      if (!user) {
-        return res.status(404).send({error: true, message: "user not found"});
+    // post carts in cart collection
+    app.post("/carts", async (req, res) => {
+      const cartData = req.body;
+      if (!cartData?.email) {
+        return res.status(400).send({error: true, message: "missing email"});
       }
+      const result = await cartsCollection.insertOne(cartData);
+      res.send(result);
+    });
 
-      // Initialize selectedClasses as an empty array if it doesn't exist
-      if (!user.selectedClasses) {
-        user.selectedClasses = [];
+    // delete a cart from carts collection using id
+    app.delete("/carts/:id", async (req, res) => {
+      const id = req.params.id;
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
       }
-
-      // Check if selectedClass already exists in selectedClasses array
-      const alreadyExists = user.selectedClasses.includes(selectedClass);
-
-      if (!alreadyExists) {
-        // If it doesn't exist, add the value to the array
-        user.selectedClasses.push(selectedClass);
-      }
-
-      const updateDoc = {
-        $set: {
-          selectedClasses: user.selectedClasses,
-        },
-      };
-
-      const result = await usersCollection.updateOne(
-        {_id: new ObjectId(id)},
-        updateDoc
-      );
-
+      const result = await cartsCollection.deleteOne({_id: new ObjectId(id)});
       res.send(result);
     });
 
@@ -294,6 +285,17 @@ async function run() {
       res.send({
         clientSecret: paymentIntent.client_secret,
       });
+    });
+
+    // payment related api
+    // payment post a payment
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
+
+      const query = {_id: {$in: payment?.cartId.map((id) => new ObjectId(id))}};
+      const deleteResult = await cartsCollection.deleteMany(query);
+      res.send({insertResult, deleteResult});
     });
 
     // Send a ping to confirm a successful connection
