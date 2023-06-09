@@ -3,6 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const PORT = process.env.PORT || 3001;
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 
 // middleware
 app.use(cors());
@@ -43,14 +44,12 @@ async function run() {
       const user = await usersCollection.findOne(query);
       res.send(user);
     });
-    
+
     // get a user using id
     app.get("/users/id/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const query = {_id: new ObjectId(id)};
       const user = await usersCollection.findOne(query);
-      console.log(user);
       res.send(user);
     });
 
@@ -96,6 +95,7 @@ async function run() {
       const classes = await classesCollection.find({}).toArray();
       res.send(classes);
     });
+
     // update a class
     app.patch("/admin/:email/classes/:id", async (req, res) => {
       // find a class using id and update class status
@@ -230,7 +230,71 @@ async function run() {
       res.send(classes);
     });
 
-    // check class
+    // TODO: here now show approved classes but will be popular classes using enrolled student show minimum 6 classes
+    // popular classes
+    app.get("/popular-classes", async (req, res) => {
+      const query = {status: "approved"};
+      const classes = await classesCollection.find(query).toArray();
+      res.send(classes);
+    });
+
+    // add selectedClasses in users collection as a student
+    app.patch("/selected-classes/:id", async (req, res) => {
+      const {id} = req.params;
+      const {selectedClass} = req.body;
+
+      if (!id || !selectedClass) {
+        return res
+          .status(400)
+          .send({error: true, message: "missing id or selectedClass"});
+      }
+
+      const user = await usersCollection.findOne({_id: new ObjectId(id)});
+
+      if (!user) {
+        return res.status(404).send({error: true, message: "user not found"});
+      }
+
+      // Initialize selectedClasses as an empty array if it doesn't exist
+      if (!user.selectedClasses) {
+        user.selectedClasses = [];
+      }
+
+      // Check if selectedClass already exists in selectedClasses array
+      const alreadyExists = user.selectedClasses.includes(selectedClass);
+
+      if (!alreadyExists) {
+        // If it doesn't exist, add the value to the array
+        user.selectedClasses.push(selectedClass);
+      }
+
+      const updateDoc = {
+        $set: {
+          selectedClasses: user.selectedClasses,
+        },
+      };
+
+      const result = await usersCollection.updateOne(
+        {_id: new ObjectId(id)},
+        updateDoc
+      );
+
+      res.send(result);
+    });
+
+    // Payment Method using stripe
+    app.post("/create-payment-intent", async (req, res) => {
+      const {price} = req.body;
+      const amount = price * 100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ping: 1});
