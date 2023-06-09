@@ -43,6 +43,16 @@ async function run() {
       const user = await usersCollection.findOne(query);
       res.send(user);
     });
+    
+    // get a user using id
+    app.get("/users/id/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = {_id: new ObjectId(id)};
+      const user = await usersCollection.findOne(query);
+      console.log(user);
+      res.send(user);
+    });
 
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -187,6 +197,17 @@ async function run() {
     // get all approved classes
     app.get("/classes", async (req, res) => {
       const query = {status: "approved"};
+      const classes = await classesCollection.find(query).toArray();
+      res.send(classes);
+    });
+
+    // get a approved classes
+    app.get("/classes/:id", async (req, res) => {
+      const id = req.params.id;
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
+      }
+      const query = {status: "approved", _id: new ObjectId(id)};
       const classes = await classesCollection.find(query).toArray();
       res.send(classes);
     });
