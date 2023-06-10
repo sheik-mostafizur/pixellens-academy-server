@@ -329,6 +329,23 @@ async function run() {
     });
 
     // payment related api
+    // payment history
+    // get payment history using student id
+    app.get("/payment-history/:id", async (req, res) => {
+      const studentId = req.params.id;
+      if (!studentId) {
+        return res
+          .status(400)
+          .send({error: true, message: "missing studentId"});
+      }
+      const query = {studentId: studentId};
+      const payments = await paymentCollection
+        .find(query)
+        .sort({paymentDate: -1})
+        .toArray();
+      res.send(payments);
+    });
+
     // payment post a payment
     app.post("/payments", async (req, res) => {
       const payment = req.body;
