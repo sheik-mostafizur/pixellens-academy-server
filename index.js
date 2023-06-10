@@ -34,6 +34,9 @@ async function run() {
     const paymentCollection = client
       .db("pixelLensAcademyDB")
       .collection("payments");
+    const enrollmentCollection = client
+      .db("pixelLensAcademyDB")
+      .collection("enrollments");
 
     // Users routes
     app.get("/users", async (req, res) => {
@@ -234,11 +237,13 @@ async function run() {
       res.send(classes);
     });
 
-    // TODO: here now show approved classes but will be popular classes using enrolled student show minimum 6 classes
     // popular classes
     app.get("/popular-classes", async (req, res) => {
       const query = {status: "approved"};
       const classes = await classesCollection.find(query).toArray();
+
+      // sort by enrolled student max to min show data
+      classes.sort((a, b) => b.enrolled - a.enrolled);
       res.send(classes);
     });
 
@@ -273,6 +278,42 @@ async function run() {
       res.send(result);
     });
 
+    // get enrollments data
+    app.get("/enrolled-classes", async (req, res) => {
+      const studentId = req.query.studentId;
+      if (!studentId) {
+        return res
+          .status(400)
+          .send({error: true, message: "missing studentId"});
+      }
+      const query = {studentId: studentId};
+
+      const enrollments = await enrollmentCollection.findOne(query);
+      // if enrollments is not found return error
+      if (!enrollments) {
+        return res
+          .status(404)
+          .send({error: true, message: "enrollments not found"});
+      }
+      const enrolledClassesId = enrollments?.classId;
+      const queryForClasses = {
+        _id: {$in: enrolledClassesId.map((id) => new ObjectId(id))},
+      };
+
+      const enrolledClasses = await classesCollection
+        .find(queryForClasses)
+        .toArray();
+
+      // if enrolledClasses not available return error
+      if (!enrolledClasses) {
+        return res
+          .status(404)
+          .send({error: true, message: "enrolledClasses not found"});
+      }
+
+      res.send(enrolledClasses);
+    });
+
     // Payment Method using stripe
     app.post("/create-payment-intent", async (req, res) => {
       const {price} = req.body;
@@ -291,11 +332,65 @@ async function run() {
     // payment post a payment
     app.post("/payments", async (req, res) => {
       const payment = req.body;
+      // insert data in paymentCollection
       const insertResult = await paymentCollection.insertOne(payment);
 
-      const query = {_id: {$in: payment?.cartId.map((id) => new ObjectId(id))}};
-      const deleteResult = await cartsCollection.deleteMany(query);
-      res.send({insertResult, deleteResult});
+      // delete data from cartsCollection
+      const deleteQuery = {
+        _id: {$in: payment?.cartId.map((id) => new ObjectId(id))},
+      };
+      const deleteResult = await cartsCollection.deleteMany(deleteQuery);
+
+      // when paymentCollection successfully than update class availableSeats, enrolled
+      const classIds = payment?.classId;
+
+      const updateDoc = {
+        $inc: {
+          availableSeats: -1,
+          enrolled: +1,
+        },
+      };
+
+      const updateClassesResult = await classesCollection.updateMany(
+        {_id: {$in: classIds.map((id) => new ObjectId(id))}},
+        updateDoc
+      );
+
+      // payment successfully add data in enrollmentCollection
+      const studentId = payment?.studentId;
+      const enrollmentsData = await enrollmentCollection.findOne({
+        studentId,
+      });
+
+      let enrolledOrUpdatedResult;
+      if (enrollmentsData) {
+        const updatedClassId = [
+          ...new Set([...enrollmentsData?.classId, ...payment?.classId]),
+        ];
+        const updateDoc = {
+          $set: {
+            classId: updatedClassId,
+          },
+        };
+        const filter = {studentId};
+
+        enrolledOrUpdatedResult = await enrollmentCollection.updateOne(
+          filter,
+          updateDoc
+        );
+      } else {
+        const enrolledData = {studentId, classId: payment?.classId};
+        enrolledOrUpdatedResult = await enrollmentCollection.insertOne(
+          enrolledData
+        );
+      }
+
+      res.send({
+        insertResult,
+        deleteResult,
+        updateClassesResult,
+        enrolledOrUpdatedResult,
+      });
     });
 
     // Send a ping to confirm a successful connection
