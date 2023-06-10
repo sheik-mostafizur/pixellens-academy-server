@@ -201,6 +201,33 @@ async function run() {
       res.send(result);
     });
 
+    // popular instructor
+    app.get("/popular-instructors", async (req, res) => {
+      // popular classes
+      const popularClasses = await classesCollection
+        .find({status: "approved"})
+        .toArray();
+      popularClasses.sort((a, b) => b.enrolled - a.enrolled);
+
+      // find all instructors
+      const popularInstructors = await usersCollection
+        .find({
+          _id: {
+            $in: popularClasses.map((cls) => new ObjectId(cls.instructorId)),
+          },
+          userType: "instructor",
+        })
+        .toArray();
+      // if popular instructor not found return error
+      if (!popularInstructors.length) {
+        return res
+          .status(404)
+          .send({error: true, message: "popular instructor not found"});
+      }
+
+      res.send(popularInstructors);
+    });
+
     // get all approved classes
     app.get("/classes", async (req, res) => {
       const query = {status: "approved"};
@@ -291,9 +318,7 @@ async function run() {
       const enrollments = await enrollmentCollection.findOne(query);
       // if enrollments is not found return error
       if (!enrollments) {
-        return res
-          .status(404)
-          .send({error: true, message: "enrollments not found"});
+        return res.send([]); // not set error because it's how warning when fetch data
       }
       const enrolledClassesId = enrollments?.classId;
       const queryForClasses = {
@@ -310,7 +335,6 @@ async function run() {
           .status(404)
           .send({error: true, message: "enrolledClasses not found"});
       }
-
       res.send(enrolledClasses);
     });
 
