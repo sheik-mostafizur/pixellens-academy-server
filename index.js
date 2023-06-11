@@ -112,7 +112,7 @@ async function run() {
       if (!id) {
         return res.status(400).send({error: true, message: "missing id"});
       }
-      if (!status || !feedback) {
+      if (!status) {
         return res.status(400).send({error: true, message: "missing body"});
       }
       const singleClass = await classesCollection.findOne({
@@ -122,12 +122,25 @@ async function run() {
         return res.status(404).send({error: true, message: "Class not found"});
       }
 
-      const updateDoc = {
-        $set: {
-          status: status,
-          feedback: feedback,
-        },
-      };
+      // update status conditionally
+      let updateDoc;
+      if (status === "denied") {
+        if (!feedback) {
+          return res.status(400).send({error: true, message: "missing body"});
+        }
+        updateDoc = {
+          $set: {
+            status: status,
+            feedback: feedback,
+          },
+        };
+      } else {
+        updateDoc = {
+          $set: {
+            status: status,
+          },
+        };
+      }
       const result = await classesCollection.updateOne(
         {_id: new ObjectId(id)},
         updateDoc
@@ -256,9 +269,61 @@ async function run() {
       res.send(result);
     });
 
+    // get update classes using id
+    app.get("/update-class/:id", async (req, res) => {
+      const id = req.params.id;
+      if (!id) {
+        return res.status(400).send({error: true, message: "missing id"});
+      }
+      // find a class
+      const query = {_id: new ObjectId(id)};
+      const classData = await classesCollection.findOne(query);
+
+      res.send(classData);
+    });
+
+    // edit update classes using id
+    app.patch("/update-class/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+
+      if (!id || !updatedData) {
+        return res.status(400).send({error: true, message: "missing data"});
+      }
+      const query = {_id: new ObjectId(id)};
+
+      let updateDoc;
+      if (updatedData?.imageURL && typeof updatedData?.imageURL !== "object") {
+        updateDoc = {
+          $set: {
+            className: updatedData.className,
+            availableSeats: updatedData.availableSeats,
+            price: updatedData.price,
+            imageURL: updatedData.imageURL,
+          },
+        };
+      } else {
+        updateDoc = {
+          $set: {
+            className: updatedData.className,
+            availableSeats: updatedData.availableSeats,
+            price: updatedData.price,
+          },
+        };
+      }
+
+      const updatedClass = await classesCollection.updateOne(query, updateDoc);
+      res.send(updatedClass);
+    });
+
     // get classes using instructor id
-    app.get("/classes/:instructorId", async (req, res) => {
+    app.get("/instructor-classes/:instructorId", async (req, res) => {
       const instructorId = req.params.instructorId;
+      if (!instructorId) {
+        return res
+          .status(400)
+          .send({error: true, message: "missing instructorId"});
+      }
       const query = {instructorId: instructorId};
       const classes = await classesCollection.find(query).toArray();
       res.send(classes);
