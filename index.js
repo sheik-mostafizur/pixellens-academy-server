@@ -331,6 +331,17 @@ async function run() {
       res.send(classes);
     });
 
+    // get classes using instructor id
+    app.delete("/instructor-classes/:classId", async (req, res) => {
+      const classId = req.params.classId;
+      if (!classId) {
+        return res.status(400).send({error: true, message: "missing classId"});
+      }
+      const query = {_id: new ObjectId(classId)};
+      const deleteClass = await classesCollection.deleteOne(query);
+      res.send(deleteClass);
+    });
+
     // popular classes
     app.get("/popular-classes", async (req, res) => {
       const query = {status: "approved"};
