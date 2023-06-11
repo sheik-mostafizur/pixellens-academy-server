@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const PORT = process.env.PORT || 3001;
 const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY);
 
@@ -21,6 +22,23 @@ const client = new MongoClient(uri, {
   },
 });
 
+// jwt authorization
+const verifyJWT = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_WEB_TOKEN);
+      req.user = decoded;
+      next();
+    } catch (err) {
+      res.status(401).send("Unauthorized");
+    }
+  } else {
+    res.status(401).send("Unauthorized");
+  }
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -37,6 +55,15 @@ async function run() {
     const enrollmentCollection = client
       .db("pixelLensAcademyDB")
       .collection("enrollments");
+
+    // JWT post
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_WEB_TOKEN, {
+        expiresIn: "1h",
+      });
+      res.send(token);
+    });
 
     // Users routes
     app.get("/users", async (req, res) => {
@@ -76,7 +103,7 @@ async function run() {
     });
 
     // check userType
-    app.get("/user-type/:email", async (req, res) => {
+    app.get("/user-type/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
       if (!email) {
         return res.status(400).send({error: true, message: "missing email"});
