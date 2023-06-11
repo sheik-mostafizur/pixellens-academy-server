@@ -292,6 +292,7 @@ async function run() {
       }
       const query = {_id: new ObjectId(id)};
 
+      // When update a picture post will be pending
       let updateDoc;
       if (updatedData?.imageURL && typeof updatedData?.imageURL !== "object") {
         updateDoc = {
@@ -300,6 +301,7 @@ async function run() {
             availableSeats: updatedData.availableSeats,
             price: updatedData.price,
             imageURL: updatedData.imageURL,
+            status: "pending",
           },
         };
       } else {
