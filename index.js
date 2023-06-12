@@ -201,6 +201,68 @@ async function run() {
       res.send(result);
     });
 
+    // popular instructors (public route)
+    app.get("/instructors/popular", async (req, res) => {
+      // approved classes
+      const approvedClasses = await classesCollection
+        .find({status: "approved"})
+        .toArray();
+
+      // Power by ChatGPT start
+      const totalEnrolledInstructors = Object.entries(
+        approvedClasses.reduce((acc, item) => {
+          const {instructorId, enrolled} = item;
+          if (acc[instructorId]) {
+            acc[instructorId] += enrolled;
+          } else {
+            acc[instructorId] = enrolled;
+          }
+          return acc;
+        }, {})
+      )
+        .map(([instructorId, enrolled]) => ({instructorId, enrolled}))
+        .sort((a, b) => b.enrolled - a.enrolled);
+      // Power by ChatGPT end
+
+      // find all instructors
+      const instructors = await usersCollection
+        .find({
+          _id: {
+            $in: totalEnrolledInstructors.map(
+              (cls) => new ObjectId(cls.instructorId)
+            ),
+          },
+          userType: "instructor",
+        })
+        .toArray();
+
+      // filter first 6 max enrolled instructor in classes
+      const popularInstructors = totalEnrolledInstructors.reduce(
+        (acc, item) => {
+          const result = instructors.find((instructor) => {
+            const instructorId = new ObjectId(instructor._id);
+            return item.instructorId === instructorId.toString();
+          });
+
+          if (!result || acc.length === 6) {
+            return acc;
+          }
+
+          acc.push(result);
+          return acc;
+        },
+        []
+      );
+
+      if (!popularInstructors.length) {
+        return res
+          .status(404)
+          .send({error: true, message: "popular instructor not found"});
+      }
+
+      res.send(popularInstructors);
+    });
+
     // get all instructors
     app.get("/instructors", async (req, res) => {
       const instructors = await usersCollection
@@ -244,16 +306,20 @@ async function run() {
       res.send(result);
     });
 
-    // popular instructor
-    app.get("/popular-instructors", async (req, res) => {
-      // popular classes
+    // popular classes (public route)
+    app.get("/classes/popular", async (req, res) => {
+      const email = req?.query?.email;
+      const isAdminOrInstructor = await usersCollection.findOne({email: email});
+      const carts = await cartsCollection.find({email: email}).toArray();
+
+      // get all course
       const popularClasses = await classesCollection
         .find({status: "approved"})
         .toArray();
       popularClasses.sort((a, b) => b.enrolled - a.enrolled);
 
       // find all instructors
-      const popularInstructors = await usersCollection
+      const instructors = await usersCollection
         .find({
           _id: {
             $in: popularClasses.map((cls) => new ObjectId(cls.instructorId)),
@@ -262,31 +328,42 @@ async function run() {
         })
         .toArray();
       // if popular instructor not found return error
-      if (!popularInstructors.length) {
+      if (!instructors.length) {
         return res
           .status(404)
-          .send({error: true, message: "popular instructor not found"});
+          .send({error: true, message: "instructor not found"});
       }
+      // implement popularity of courses
+      popularClasses.forEach((course) => {
+        const matchedInstructor = instructors.find((instructor) => {
+          return instructor._id.toString() === course.instructorId;
+        });
+        if (matchedInstructor) {
+          course.instructorName = matchedInstructor.name;
+        }
 
-      res.send(popularInstructors);
-    });
+        //start for is cartable for not?
 
-    // get all approved classes
-    app.get("/classes", async (req, res) => {
-      const query = {status: "approved"};
-      const classes = await classesCollection.find(query).toArray();
-      res.send(classes);
-    });
+        if (email) {
+          if (
+            isAdminOrInstructor.userType == "instructor" ||
+            isAdminOrInstructor.userType == "admin"
+          ) {
+            course.isCartAble = false;
+          }
+        }
 
-    // get a approved classes
-    app.get("/classes/:id", async (req, res) => {
-      const id = req.params.id;
-      if (!id) {
-        return res.status(400).send({error: true, message: "missing id"});
-      }
-      const query = {status: "approved", _id: new ObjectId(id)};
-      const classes = await classesCollection.find(query).toArray();
-      res.send(classes);
+        // is cart able
+        if (carts.some((cart) => cart.classId === course._id.toString())) {
+          course.isCartAble = false;
+        }
+        //end for is cartable for not?
+      });
+
+      // send just 6 classes
+      // don't use .limit() because it not enrolled sorted
+
+      res.send(popularClasses.slice(0, 6));
     });
 
     // post classes
@@ -299,21 +376,79 @@ async function run() {
       res.send(result);
     });
 
-    // get update classes using id
-    app.get("/update-class/:id", async (req, res) => {
+    // get all approved classes
+    app.get("/classes", async (req, res) => {
+      const email = req?.query?.email;
+      const isAdminOrInstructor = await usersCollection.findOne({email: email});
+      const carts = await cartsCollection.find({email: email}).toArray();
+
+      // get all courses
+      const courses = await classesCollection
+        .find({status: "approved"})
+        .toArray();
+
+      // find all instructors
+      const instructors = await usersCollection
+        .find({
+          _id: {
+            $in: courses.map((course) => new ObjectId(course.instructorId)),
+          },
+          userType: "instructor",
+        })
+        .toArray();
+
+      // if instructor not found return error
+      if (!instructors.length) {
+        return res
+          .status(404)
+          .send({error: true, message: "instructor not found"});
+      }
+
+      courses.forEach((cls) => {
+        const matchedInstructor = instructors.find((instructor) => {
+          return instructor._id.toString() === cls.instructorId;
+        });
+        if (matchedInstructor) {
+          cls.instructorName = matchedInstructor.name;
+        }
+
+        //start for is cartable for not?
+
+        if (email) {
+          if (
+            isAdminOrInstructor.userType == "instructor" ||
+            isAdminOrInstructor.userType == "admin"
+          ) {
+            cls.isCartAble = false;
+          }
+        }
+
+        // is cart able
+        if (carts.some((cart) => cart.classId === cls._id.toString())) {
+          cls.isCartAble = false;
+        }
+        //end for is cartable for not?
+      });
+
+      // send just 6 classes
+      // don't use .limit() because it not enrolled sorted
+
+      res.send(courses);
+    });
+
+    // get a  class
+    app.get("/classes/:id", async (req, res) => {
       const id = req.params.id;
       if (!id) {
         return res.status(400).send({error: true, message: "missing id"});
       }
-      // find a class
       const query = {_id: new ObjectId(id)};
-      const classData = await classesCollection.findOne(query);
-
-      res.send(classData);
+      const classes = await classesCollection.findOne(query);
+      res.send(classes);
     });
 
     // edit update classes using id
-    app.patch("/update-class/:id", async (req, res) => {
+    app.patch("/classes/:id", async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
 
@@ -393,7 +528,7 @@ async function run() {
     });
 
     // delete a cart from carts collection using id
-    app.delete("/carts/:id", async (req, res) => {
+    app.delete("/carts/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       if (!id) {
         return res.status(400).send({error: true, message: "missing id"});
@@ -403,7 +538,7 @@ async function run() {
     });
 
     // get enrollments data
-    app.get("/enrolled-classes", async (req, res) => {
+    app.get("/enrolled-classes", verifyJWT, async (req, res) => {
       const studentId = req.query.studentId;
       if (!studentId) {
         return res
@@ -452,7 +587,7 @@ async function run() {
     // payment related api
     // payment history
     // get payment history using student id
-    app.get("/payment-history/:id", async (req, res) => {
+    app.get("/payment-history/:id", verifyJWT, async (req, res) => {
       const studentId = req.params.id;
       if (!studentId) {
         return res
@@ -468,7 +603,7 @@ async function run() {
     });
 
     // payment post a payment
-    app.post("/payments", async (req, res) => {
+    app.post("/payments", verifyJWT, async (req, res) => {
       const payment = req.body;
       // insert data in paymentCollection
       const insertResult = await paymentCollection.insertOne(payment);
